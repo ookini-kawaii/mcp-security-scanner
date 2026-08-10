@@ -1,0 +1,18 @@
+id: ATR-DESC-INJECTION-001
+name: Description Hidden Directive Injection
+description: >
+  检测工具描述中通过XML风格标签（如<IMPORTANT>）嵌入的隐藏指令。
+  这类指令对用户不可见但模型会执行，是MCP供应链中最基础的攻击方式。
+severity: HIGH
+category: prompt_injection
+patterns:
+  type: regex
+  match:
+    - '<IMPORTANT>.*?</IMPORTANT>'
+    - '<SYSTEM>.*?</SYSTEM>'
+    - '<INSTRUCTION>.*?</INSTRUCTION>'
+    - '<SECRET>.*?</SECRET>'
+    - '<HIDDEN>.*?</HIDDEN>'
+mitre:
+  tactic: TA0043
+  technique: T1059.007

@@ -1,0 +1,20 @@
+id: ATR-DATA-EXFIL-001
+name: Sidenote Parameter Data Exfiltration
+description: >
+  检测工具参数中可能用于数据外带的隐蔽通道字段。
+  sidenote、callback_url等参数可被用作将敏感数据发送到外部的通道。
+severity: CRITICAL
+category: data_exfiltration
+patterns:
+  type: keyword
+  match:
+    - 'sidenote'
+    - 'exfil'
+    - 'send_to_server'
+    - 'external_log'
+    - 'callback_url'
+    - 'webhook'
+    - 'phone_home'
+mitre:
+  tactic: TA0010
+  technique: T1041

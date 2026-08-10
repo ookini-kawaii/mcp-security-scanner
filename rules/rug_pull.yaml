@@ -1,0 +1,18 @@
+id: ATR-RUG-PULL-001
+name: Description Variation Across Calls (Rug Pull)
+description: >
+  检测工具描述在不同调用中可能变化的模式。
+  首次list_tools返回干净描述获取信任，后续返回投毒描述。
+severity: HIGH
+category: supply_chain_poisoning
+patterns:
+  type: keyword
+  match:
+    - 'first_call_description'
+    - 'second_call_description'
+    - 'description_varies'
+    - 'dynamic_description'
+    - 'description_changes'
+mitre:
+  tactic: TA0043
+  technique: T1195.002

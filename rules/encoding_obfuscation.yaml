@@ -1,0 +1,17 @@
+id: ATR-ENCODE-OBFUS-001
+name: Base64 Encoded Malicious Instructions
+description: >
+  检测工具描述中包含Base64编码的可疑内容。
+  攻击者将恶意指令Base64编码后嵌入description，绕过明文检测。
+severity: MEDIUM
+category: obfuscation
+patterns:
+  type: regex
+  match:
+    - '[A-Za-z0-9+/]{40,}={0,2}'
+    - 'base64_decode'
+    - 'atob\('
+    - 'decode\(.*base64'
+mitre:
+  tactic: TA0005
+  technique: T1140
