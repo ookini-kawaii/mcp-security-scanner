@@ -1,5 +1,7 @@
 # MCP Tool Security Scanner
 
+> v1.1.0
+
 基于ATR（Agent Threat Rules）的MCP工具安全扫描器，支持静态规则匹配 + Base64自动解码二次匹配。
 
 ## 功能
@@ -9,6 +11,7 @@
 - 📊 终端彩色输出（详细模式/精简表格模式）
 - 📄 JSON格式检测报告
 - 📁 支持单文件/目录批量扫描
+- 📎 支持JSON/PY/YAML/TS/JS等多种文件格式
 
 ## 检测的5类恶意模式
 
@@ -74,7 +77,7 @@ mcp-security-scanner/
 
 ```
 [1] 规则加载器     →  加载5条YAML规则
-[2] 目标文件读取   →  读取JSON/PY/YML文件
+[2] 目标文件读取   →  读取JSON/PY/YML/TS/JS文件
 [3] 第一轮匹配     →  regex正则 + keyword关键词
 [4] Base64解码器   →  提取Base64 → 解码 → 二次匹配
 [5] 报告生成器     →  终端彩色输出 + JSON报告

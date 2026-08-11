@@ -59,9 +59,10 @@ class RuleLoader:
 
 
 class TargetReader:
-    """目标文件读取器：支持JSON/Python/YAML格式"""
+    """目标文件读取器：支持JSON/Python/YAML/TS/JS等格式"""
 
-    SUPPORTED_EXTENSIONS = {'.json', '.py', '.yaml', '.yml', '.txt', '.md'}
+    SUPPORTED_EXTENSIONS = {'.json', '.py', '.yaml', '.yml',
+                            '.ts', '.js', '.tsx', '.jsx'}
 
     @staticmethod
     def read(file_path):
