@@ -1,6 +1,12 @@
 # MCP Tool Security Scanner
 
-> v1.1.1
+> 一个面向 MCP 工具描述与配置文件的轻量安全扫描器，让常见 Agent 威胁检测可以直接进入本地开发与 CI 流程。
+
+[![Version](https://img.shields.io/github/v/tag/ookini-kawaii/mcp-security-scanner?label=version&color=orange)](https://github.com/ookini-kawaii/mcp-security-scanner/tags)
+[![License](https://img.shields.io/github/license/ookini-kawaii/mcp-security-scanner?label=license&color=brightgreen)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.x-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![ATR Rules](https://img.shields.io/badge/ATR%20rules-5-7B61FF)](rules/)
+[![Last Commit](https://img.shields.io/github/last-commit/ookini-kawaii/mcp-security-scanner?label=last%20commit)](https://github.com/ookini-kawaii/mcp-security-scanner/commits/main)
 
 基于ATR（Agent Threat Rules）的MCP工具安全扫描器，支持静态规则匹配 + Base64自动解码二次匹配。
 
