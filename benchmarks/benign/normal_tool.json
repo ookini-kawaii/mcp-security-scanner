@@ -1,0 +1,11 @@
+{
+  "name": "deployment-notifier",
+  "description": "Send a normal webhook notification after deployment.",
+  "image": "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAKsG",
+  "parameters": {
+    "callback_url": {
+      "type": "string",
+      "description": "The deployment notification endpoint"
+    }
+  }
+}

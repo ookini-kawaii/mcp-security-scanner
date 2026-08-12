@@ -17,8 +17,19 @@ import argparse
 from pathlib import Path
 from datetime import datetime
 
+from mcp_security_scanner import MCPSecurityScanner as ContextAwareScanner, VERSION
+from mcp_security_scanner import (
+    IntegrityManifestError,
+    build_manifest,
+    compare_manifest,
+    load_manifest,
+    save_manifest,
+)
+from mcp_security_scanner.correlation import correlate
+from mcp_security_scanner.reports import ReportGenerator as StructuredReportGenerator
+from mcp_security_scanner.rules import ScannerConfigurationError
 
-VERSION = "1.1.1"
+
 EXIT_CLEAN = 0
 EXIT_FINDINGS = 1
 EXIT_ERROR = 2
@@ -35,10 +46,6 @@ except ImportError:
         BRIGHT = RESET_ALL = NORMAL = ""
 
 
-class ScannerConfigurationError(ValueError):
-    """扫描器配置或规则无效。"""
-
-
 class RuleLoader:
     """ATR规则加载器：从YAML文件加载检测规则"""
 
@@ -47,106 +54,16 @@ class RuleLoader:
     VALID_MATCH_TYPES = {'regex', 'keyword'}
 
     def __init__(self, rules_dir):
+        from mcp_security_scanner.rules import RuleLoader as PackageRuleLoader
         self.rules_dir = Path(rules_dir)
+        self._loader = PackageRuleLoader(rules_dir)
         self.rules = []
 
     def load(self):
         """遍历规则目录，加载所有YAML规则"""
-        if not self.rules_dir.is_dir():
-            raise ScannerConfigurationError(
-                f"规则目录不存在或不是目录: {self.rules_dir}"
-            )
-
-        yaml_files = sorted(
-            list(self.rules_dir.rglob("*.yaml")) +
-            list(self.rules_dir.rglob("*.yml"))
-        )
-        if not yaml_files:
-            raise ScannerConfigurationError(
-                f"规则目录中没有YAML规则: {self.rules_dir}"
-            )
-
-        self.rules = []
-        rule_ids = set()
-        for yaml_file in yaml_files:
-            try:
-                with open(yaml_file, 'r', encoding='utf-8') as f:
-                    rule = yaml.safe_load(f)
-            except (OSError, UnicodeError, yaml.YAMLError) as exc:
-                raise ScannerConfigurationError(
-                    f"规则加载失败 {yaml_file.name}: {exc}"
-                ) from exc
-
-            self._validate_rule(rule, yaml_file.name)
-            if rule['id'] in rule_ids:
-                raise ScannerConfigurationError(
-                    f"规则ID重复 {rule['id']}: {yaml_file.name}"
-                )
-            rule_ids.add(rule['id'])
-            rule['_source_file'] = str(yaml_file.name)
-            self.rules.append(rule)
-
+        self.rules = self._loader.load()
         print(f"{Fore.GREEN}[+] 已加载 {len(self.rules)} 条规则")
         return self.rules
-
-    def _validate_rule(self, rule, source_name="<unknown>"):
-        """校验规则结构，并在扫描前编译正则表达式。"""
-        if not isinstance(rule, dict):
-            raise ScannerConfigurationError(
-                f"规则必须是YAML对象: {source_name}"
-            )
-
-        missing = sorted(self.REQUIRED_FIELDS - rule.keys())
-        if missing:
-            raise ScannerConfigurationError(
-                f"规则缺少必需字段 {', '.join(missing)}: {source_name}"
-            )
-
-        for field in ('id', 'name', 'category'):
-            if not isinstance(rule[field], str) or not rule[field].strip():
-                raise ScannerConfigurationError(
-                    f"规则字段 {field} 必须是非空字符串: {source_name}"
-                )
-
-        if (not isinstance(rule['severity'], str) or
-                rule['severity'] not in self.VALID_SEVERITIES):
-            allowed = ', '.join(sorted(self.VALID_SEVERITIES))
-            raise ScannerConfigurationError(
-                f"规则严重级别必须是 {allowed}: {source_name}"
-            )
-
-        patterns = rule['patterns']
-        if not isinstance(patterns, dict):
-            raise ScannerConfigurationError(
-                f"规则字段 patterns 必须是对象: {source_name}"
-            )
-
-        match_type = patterns.get('type')
-        if (not isinstance(match_type, str) or
-                match_type not in self.VALID_MATCH_TYPES):
-            allowed = ', '.join(sorted(self.VALID_MATCH_TYPES))
-            raise ScannerConfigurationError(
-                f"规则匹配类型必须是 {allowed}: {source_name}"
-            )
-
-        match_patterns = patterns.get('match')
-        if (not isinstance(match_patterns, list) or not match_patterns or
-                not all(
-                    isinstance(item, str) and item
-                    for item in match_patterns
-                )):
-            raise ScannerConfigurationError(
-                f"规则字段 patterns.match 必须是非空字符串列表: {source_name}"
-            )
-
-        if match_type == 'regex':
-            for pattern in match_patterns:
-                try:
-                    re.compile(pattern, re.IGNORECASE | re.DOTALL)
-                except re.error as exc:
-                    raise ScannerConfigurationError(
-                        f"规则正则表达式无效 {source_name}: {pattern!r}: {exc}"
-                    ) from exc
 
 
 class TargetReader:
@@ -489,6 +406,10 @@ class MCPSecurityScanner:
         return self._deduplicate_findings(all_findings)
 
 
+# Keep the original import path while routing callers to the current engine.
+MCPSecurityScanner = ContextAwareScanner
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description='MCP工具安全扫描器 - 基于ATR规则 (支持Base64解码)'
@@ -499,6 +420,18 @@ def main(argv=None):
     parser.add_argument('target', help='目标文件或目录路径')
     parser.add_argument('-r', '--rules', default='rules',
                         help='ATR规则目录路径 (默认: rules)')
+    parser.add_argument('--profile', choices=('hunt', 'enforce'), default='hunt',
+                        help='扫描配置：hunt显示全部线索，enforce仅显示高置信结果')
+    parser.add_argument('--include-tests', action='store_true',
+                        help='包含测试目录和测试文件')
+    parser.add_argument('--fail-on', choices=('low', 'medium', 'high', 'critical', 'none'),
+                        default='low', help='达到指定严重级别时返回退出码1')
+    parser.add_argument('--format', choices=('terminal', 'json', 'sarif'),
+                        default='terminal', help='输出格式')
+    parser.add_argument('--baseline', metavar='PATH',
+                        help='使用 SHA-256 基线清单检测文件变化')
+    parser.add_argument('--write-baseline', metavar='PATH',
+                        help='写出当前目标的 SHA-256 基线清单')
     parser.add_argument('--no-report', action='store_true',
                         help='不保存JSON报告')
     parser.add_argument('--brief', action='store_true',
@@ -511,32 +444,61 @@ def main(argv=None):
         return EXIT_ERROR
 
     try:
-        scanner = MCPSecurityScanner(args.rules)
-        if target.is_dir():
-            finding_count = scanner.scan_directory(
-                args.target,
-                save_report=not args.no_report,
-                brief=args.brief
-            )
-        elif target.is_file():
-            findings = scanner.scan_file(
-                args.target,
-                save_report=not args.no_report,
-                brief=args.brief
-            )
-            finding_count = len(findings)
-        else:
+        scanner = ContextAwareScanner(
+            args.rules, profile=args.profile, include_tests=args.include_tests
+        )
+        if not target.is_file() and not target.is_dir():
             print(
                 f"{Fore.RED}[!] 目标不是普通文件或目录: {args.target}",
                 file=sys.stderr
             )
             return EXIT_ERROR
-    except (ScannerConfigurationError, OSError, UnicodeError) as exc:
+        result = scanner.scan_path(target)
+
+        if args.baseline:
+            baseline = load_manifest(args.baseline)
+            integrity_findings = compare_manifest(
+                target, baseline, include_tests=args.include_tests
+            )
+            result.findings.extend(integrity_findings)
+            result.incidents = correlate(result.findings)
+        if args.write_baseline:
+            save_manifest(
+                build_manifest(target, include_tests=args.include_tests),
+                args.write_baseline,
+            )
+
+        if args.format == 'terminal':
+            ReportGenerator.print_terminal(
+                result.findings, args.target, brief=args.brief
+            )
+            if result.incidents:
+                print(f"{Fore.MAGENTA}[i] 关联攻击事件: {len(result.incidents)} 个")
+            if result.skipped_files:
+                print(f"{Fore.YELLOW}[i] 已跳过文件: {len(result.skipped_files)} 个")
+        elif args.format == 'json':
+            print(json.dumps(StructuredReportGenerator.to_json(result), ensure_ascii=False, indent=2))
+        else:
+            print(json.dumps(StructuredReportGenerator.to_sarif(result), ensure_ascii=False, indent=2))
+
+        if not args.no_report:
+            output_dir = Path('reports')
+            output_dir.mkdir(exist_ok=True)
+            safe_name = re.sub(r'[^\w]', '_', str(target))
+            output_file = output_dir / f"report_{safe_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ 'sarif' if args.format == 'sarif' else 'json' }"
+            payload = (StructuredReportGenerator.to_sarif(result)
+                       if args.format == 'sarif'
+                       else StructuredReportGenerator.to_json(result))
+            output_file.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8'
+            )
+            print(f"{Fore.BLUE}[i] 报告已保存: {output_file}")
+
+        threshold = args.fail_on.upper()
+        return EXIT_FINDINGS if result.reaches_threshold(threshold) else EXIT_CLEAN
+    except (ScannerConfigurationError, IntegrityManifestError, OSError, UnicodeError) as exc:
         print(f"{Fore.RED}[!] 扫描失败: {exc}", file=sys.stderr)
         return EXIT_ERROR
-
-    return EXIT_FINDINGS if finding_count else EXIT_CLEAN
-
 
 if __name__ == '__main__':
     sys.exit(main())
