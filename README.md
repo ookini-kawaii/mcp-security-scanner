@@ -2,7 +2,7 @@
 
 > 面向 MCP 工具描述、配置和源码字符串的静态安全扫描器，将 Agent 供应链威胁检测接入本地开发与 CI。
 
-[![Version](https://img.shields.io/github/v/tag/ookini-kawaii/mcp-security-scanner?label=version&color=orange)](https://github.com/ookini-kawaii/mcp-security-scanner/tags)
+[![Version](https://img.shields.io/badge/version-v1.3.0-orange)](https://github.com/ookini-kawaii/mcp-security-scanner/commits/main)
 [![License](https://img.shields.io/github/license/ookini-kawaii/mcp-security-scanner?label=license&color=brightgreen)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.x-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![ATR Rules](https://img.shields.io/badge/ATR%20rules-5-7B61FF)](rules/)
