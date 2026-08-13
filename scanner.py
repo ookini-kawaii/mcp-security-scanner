@@ -17,6 +17,8 @@ from mcp_security_scanner import (
     compare_manifest,
     load_manifest,
     save_manifest,
+    monitor_tools,
+    RuntimeProbeError,
 )
 from mcp_security_scanner.correlation import correlate
 from mcp_security_scanner.reports import ReportGenerator
@@ -102,6 +104,13 @@ def build_parser():
     )
     parser.add_argument("--no-report", action="store_true", help="不保存报告")
     parser.add_argument("--brief", action="store_true", help="精简终端输出")
+    parser.add_argument(
+        "--runtime-command", nargs="+", metavar="COMMAND",
+        help="启动 MCP stdio Server 并监控 tools/list 变化",
+    )
+    parser.add_argument("--runtime-polls", type=int, default=2, help="tools/list 轮询次数 (默认: 2)")
+    parser.add_argument("--runtime-timeout", type=float, default=5.0, help="单次 MCP 请求超时秒数")
+    parser.add_argument("--runtime-interval", type=float, default=0.0, help="轮询间隔秒数")
     return parser
 
 
@@ -120,6 +129,21 @@ def main(argv=None):
         )
         result = scanner.scan_path(target)
         signing_key = os.environ.get(BASELINE_KEY_ENV)
+
+        if args.runtime_command:
+            runtime_scan = monitor_tools(
+                args.runtime_command,
+                polls=args.runtime_polls,
+                timeout=args.runtime_timeout,
+                interval=args.runtime_interval,
+            )
+            result.runtime = {
+                "command": runtime_scan.command,
+                "polls": runtime_scan.polls,
+                "snapshots": runtime_scan.snapshots,
+            }
+            result.findings.extend(runtime_scan.findings)
+            result.incidents = correlate(result.findings)
 
         if args.baseline:
             baseline = load_manifest(
@@ -162,7 +186,13 @@ def main(argv=None):
             if result.reaches_threshold(args.fail_on.upper())
             else EXIT_CLEAN
         )
-    except (ScannerConfigurationError, IntegrityManifestError, OSError, UnicodeError) as exc:
+    except (
+        ScannerConfigurationError,
+        IntegrityManifestError,
+        RuntimeProbeError,
+        OSError,
+        UnicodeError,
+    ) as exc:
         print(f"[!] 扫描失败: {exc}", file=sys.stderr)
         return EXIT_ERROR
 

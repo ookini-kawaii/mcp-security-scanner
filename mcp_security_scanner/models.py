@@ -34,6 +34,7 @@ class ScanResult:
     findings: list[dict[str, Any]] = field(default_factory=list)
     incidents: list[dict[str, Any]] = field(default_factory=list)
     skipped_files: list[dict[str, str]] = field(default_factory=list)
+    runtime: dict[str, Any] | None = None
 
     def to_dict(self, version: str) -> dict[str, Any]:
         return {
@@ -46,6 +47,7 @@ class ScanResult:
             "findings": self.findings,
             "incidents": self.incidents,
             "skipped_files": self.skipped_files,
+            "runtime": self.runtime,
         }
 
     def reaches_threshold(self, threshold: str) -> bool:

@@ -39,6 +39,11 @@ class ReportGenerator:
                 print()
         if result.skipped_files:
             print(f"[i] 已跳过 {len(result.skipped_files)} 个文件")
+        if result.runtime:
+            print(
+                f"[i] 运行时监控: {result.runtime['polls']} 次 tools/list，"
+                f"{len(result.runtime['snapshots'])} 个快照"
+            )
 
     @staticmethod
     def to_json(result):
