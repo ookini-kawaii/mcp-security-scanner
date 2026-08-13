@@ -7,3 +7,4 @@ reports/
 build/
 dist/
 *.egg-info/
+.bug-hunter/

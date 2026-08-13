@@ -78,14 +78,29 @@ def _structured_units(path: Path, content: str, data) -> list[ScanUnit]:
 
     def add(value: str, field_path: str, scope: str):
         nonlocal search_cursor
-        offset = content.find(value, search_cursor)
+        offset = -1
+        source_offsets = None
+        source_end = None
+        if path.suffix.lower() == ".json":
+            located = _find_json_string(
+                content,
+                value,
+                search_cursor,
+                key_token=scope in {"parameter_name", "field_name"},
+            )
+            if located:
+                offset, encoded = located
+                source_offsets = _json_string_offsets(encoded, offset, value)
+                source_end = offset + len(encoded)
+        else:
+            offset = content.find(value, search_cursor)
         if offset < 0:
             offset = content.find(value)
         if offset < 0:
             offset = 0
-        search_cursor = offset + len(value)
+        search_cursor = source_end or offset + len(value)
         units.append(
-            ScanUnit(path, value, field_path, scope, content, offset)
+            ScanUnit(path, value, field_path, scope, content, offset, source_offsets=source_offsets)
         )
 
     def walk(value, field_path="$", parent_key=""):
@@ -121,9 +136,12 @@ def _python_string_units(path: Path, content: str) -> list[ScanUnit]:
     units = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            offset = _line_column_to_offset(
+            node_offset = _line_column_to_offset(
                 content, node.lineno, node.col_offset
             )
+            segment = ast.get_source_segment(content, node) or ""
+            value_offset = segment.find(node.value)
+            offset = node_offset + value_offset if value_offset >= 0 else node_offset
             units.append(
                 ScanUnit(
                     path, node.value, f"string:{node.lineno}",
@@ -145,4 +163,43 @@ def _javascript_string_units(path: Path, content: str) -> list[ScanUnit]:
 
 def _line_column_to_offset(content: str, line: int, column: int) -> int:
     lines = content.splitlines(keepends=True)
-    return sum(len(item) for item in lines[:line - 1]) + column
+    line_text = lines[line - 1]
+    character_column = len(line_text.encode("utf-8")[:column].decode("utf-8"))
+    return sum(len(item) for item in lines[:line - 1]) + character_column
+
+
+def _json_string_offsets(encoded: str, absolute_offset: int, decoded: str):
+    offsets = []
+    index = 1
+    while index < len(encoded) - 1:
+        if encoded[index] != "\\":
+            offsets.append(absolute_offset + index)
+            index += 1
+            continue
+        escape_length = 2
+        if encoded[index + 1] == "u":
+            escape_length = 6
+            first = int(encoded[index + 2:index + 6], 16)
+            if (
+                0xD800 <= first <= 0xDBFF
+                and encoded[index + 6:index + 8] == "\\u"
+            ):
+                escape_length = 12
+        decoded_escape = json.loads('"' + encoded[index:index + escape_length] + '"')
+        offsets.extend([absolute_offset + index] * len(decoded_escape))
+        index += escape_length
+    return offsets if len(offsets) == len(decoded) else None
+
+
+def _find_json_string(content: str, value: str, start: int, key_token: bool = False):
+    for match in re.finditer(r'"(?:\\.|[^"\\])*"', content[start:]):
+        encoded = match.group()
+        after = content[start + match.end():].lstrip()
+        if after.startswith(":") != key_token:
+            continue
+        try:
+            if json.loads(encoded) == value:
+                return start + match.start(), encoded
+        except json.JSONDecodeError:
+            continue
+    return None

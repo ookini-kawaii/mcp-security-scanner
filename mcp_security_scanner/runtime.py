@@ -2,11 +2,13 @@
 
 import hashlib
 import json
+import math
 import queue
 import subprocess
 import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 RUNTIME_RULE_ID = "MCP-RUG-PULL-RUNTIME-001"
@@ -33,6 +35,45 @@ def _digest(value):
     return hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest()
 
 
+def _public_command(command):
+    """Return a useful command label without persisting server arguments."""
+    executable = Path(command[0]).name
+    return [executable, "<arguments redacted>"] if len(command) > 1 else [executable]
+
+
+def _validate_response(message, request_id, method):
+    if not isinstance(message, dict):
+        raise RuntimeProbeError(f"{method} 响应必须是 JSON 对象")
+    if message.get("jsonrpc") != "2.0":
+        raise RuntimeProbeError(f"{method} 响应缺少有效的 jsonrpc 2.0 版本")
+    if message.get("id") != request_id:
+        return False
+    has_result = "result" in message
+    has_error = "error" in message
+    if has_result == has_error:
+        raise RuntimeProbeError(f"{method} 响应必须且只能包含 result 或 error")
+    if has_error:
+        raise RuntimeProbeError(f"{method} 返回错误: {message['error']}")
+    return True
+
+
+def _validate_initialize(message):
+    result = message.get("result")
+    server_info = result.get("serverInfo") if isinstance(result, dict) else None
+    if (
+        not isinstance(result, dict)
+        or not isinstance(result.get("protocolVersion"), str)
+        or not result["protocolVersion"]
+        or not isinstance(result.get("capabilities"), dict)
+        or not isinstance(server_info, dict)
+        or not isinstance(server_info.get("name"), str)
+        or not server_info["name"]
+        or not isinstance(server_info.get("version"), str)
+        or not server_info["version"]
+    ):
+        raise RuntimeProbeError("initialize 响应缺少有效的 protocolVersion、capabilities 或 serverInfo")
+
+
 def _tool_map(message):
     if not isinstance(message, dict):
         raise RuntimeProbeError("tools/list 响应必须是 JSON 对象")
@@ -43,7 +84,13 @@ def _tool_map(message):
         raise RuntimeProbeError("tools/list 响应缺少 result.tools 列表")
     tools = {}
     for item in result["tools"]:
-        if not isinstance(item, dict) or not isinstance(item.get("name"), str) or not item["name"]:
+        if (
+            not isinstance(item, dict)
+            or not isinstance(item.get("name"), str)
+            or not item["name"]
+            or not isinstance(item.get("inputSchema"), dict)
+            or ("description" in item and not isinstance(item["description"], str))
+        ):
             raise RuntimeProbeError("tools/list 包含无效工具对象")
         name = item["name"]
         if name in tools:
@@ -68,7 +115,7 @@ def _finding(command, poll, name, change, before, after, field=None):
         "confidence": 95,
         "matched_pattern": change,
         "matched_text": f"{labels[change]}: {name}" + (f" ({field})" if field else ""),
-        "target": "runtime:" + " ".join(command),
+        "target": "runtime:" + command[0],
         "field_path": field_path,
         "scope": "runtime_tools_list",
         "position": "line:1,column:1",
@@ -80,8 +127,6 @@ def _finding(command, poll, name, change, before, after, field=None):
         "runtime_change": change,
         "before_sha256": _digest(before) if before is not None else None,
         "after_sha256": _digest(after) if after is not None else None,
-        "before": before,
-        "after": after,
     }
 
 
@@ -162,7 +207,7 @@ class _StdioSession:
                 raise RuntimeProbeError(f"MCP Server 请求超时: {method}") from exc
             if isinstance(response, RuntimeProbeError):
                 raise response
-            if response.get("id") == request_id:
+            if _validate_response(response, request_id, method):
                 return response
 
     def notify(self, method, params=None):
@@ -190,23 +235,27 @@ class _StdioSession:
 
 
 def monitor_tools(command, polls=2, timeout=5.0, interval=0.0):
-    if polls < 2:
+    if not isinstance(polls, int) or isinstance(polls, bool) or polls < 2:
         raise RuntimeProbeError("runtime polls 至少为 2，才能比较 tools/list 变化")
-    if timeout <= 0:
+    if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or not math.isfinite(timeout) or timeout <= 0:
         raise RuntimeProbeError("runtime timeout 必须大于 0")
+    if not isinstance(interval, (int, float)) or isinstance(interval, bool) or not math.isfinite(interval) or interval < 0:
+        raise RuntimeProbeError("runtime interval 必须大于或等于 0")
     session = _StdioSession(command)
-    scan = RuntimeScan(list(command), polls)
+    public_command = _public_command(command)
+    scan = RuntimeScan(public_command, polls)
     try:
-        session.request(
+        initialize_response = session.request(
             1,
             "initialize",
             {
                 "protocolVersion": "2025-03-26",
                 "capabilities": {},
-                "clientInfo": {"name": "mcp-security-scanner", "version": "1.4.0"},
+                "clientInfo": {"name": "mcp-security-scanner", "version": "1.4.1"},
             },
             timeout,
         )
+        _validate_initialize(initialize_response)
         session.notify("notifications/initialized")
         previous = None
         for poll in range(1, polls + 1):
@@ -216,10 +265,9 @@ def monitor_tools(command, polls=2, timeout=5.0, interval=0.0):
                 "poll": poll,
                 "tool_count": len(current),
                 "sha256": _digest(current),
-                "tools": current,
             })
             if previous is not None:
-                scan.findings.extend(_compare(command, poll, previous, current))
+                scan.findings.extend(_compare(public_command, poll, previous, current))
             previous = current
             if poll < polls and interval:
                 time.sleep(interval)

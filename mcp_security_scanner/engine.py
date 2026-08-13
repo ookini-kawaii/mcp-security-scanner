@@ -65,44 +65,56 @@ class MCPSecurityScanner:
         for unit in units:
             for rule in self.rules:
                 findings.extend(match_unit(unit, rule))
-            for decoded in extract_base64(unit.content):
-                decoded_unit = ScanUnit(
-                    path,
-                    decoded["decoded"],
-                    unit.field_path,
-                    unit.scope,
-                    content,
-                    unit.base_offset + decoded["position"],
-                    decoded["encoded"],
-                    decoded["depth"],
-                )
-                decoded_findings = []
-                for rule in self.rules:
-                    if rule["category"] == "obfuscation":
-                        continue
-                    decoded_findings.extend(match_unit(decoded_unit, rule))
-                findings.extend(decoded_findings)
-                if decoded_findings:
-                    source_offset = unit.base_offset + decoded["position"]
-                    line, column = line_column(content, source_offset)
-                    findings.append({
-                        "rule_id": "ATR-ENCODE-OBFUS-001",
-                        "rule_name": "Confirmed Encoded Payload",
-                        "severity": "MEDIUM",
-                        "severity_rank": SEVERITY_RANK["MEDIUM"],
-                        "category": "obfuscation",
-                        "confidence": 90,
-                        "matched_pattern": "base64 payload with malicious decoded content",
-                        "matched_text": decoded["encoded"],
-                        "target": str(path),
-                        "field_path": unit.field_path,
-                        "scope": unit.scope,
-                        "position": f"line:{line},column:{column}",
-                        "offset": source_offset,
-                        "source_file": "encoding_obfuscation.yaml",
-                        "decoded_from": decoded["encoded"],
-                        "decoded_depth": decoded["depth"],
-                    })
+            findings.extend(self._scan_decoded(unit, content))
+        return findings
+
+    def _scan_decoded(self, unit, source_content):
+        findings = []
+        for decoded in extract_base64(unit.content, unit.decoded_depth):
+            source_offset = (
+                unit.source_offsets[decoded["position"]]
+                if unit.source_offsets
+                and decoded["position"] < len(unit.source_offsets)
+                else unit.base_offset + decoded["position"]
+            )
+            decoded_unit = ScanUnit(
+                unit.file_path,
+                decoded["decoded"],
+                unit.field_path,
+                unit.scope,
+                source_content,
+                source_offset,
+                decoded["encoded"],
+                decoded["depth"],
+                [source_offset] * len(decoded["decoded"]),
+            )
+            decoded_findings = []
+            for rule in self.rules:
+                if rule["category"] == "obfuscation":
+                    continue
+                decoded_findings.extend(match_unit(decoded_unit, rule))
+            decoded_findings.extend(self._scan_decoded(decoded_unit, source_content))
+            findings.extend(decoded_findings)
+            if decoded_findings:
+                line, column = line_column(source_content, source_offset)
+                findings.append({
+                    "rule_id": "ATR-ENCODE-OBFUS-001",
+                    "rule_name": "Confirmed Encoded Payload",
+                    "severity": "MEDIUM",
+                    "severity_rank": SEVERITY_RANK["MEDIUM"],
+                    "category": "obfuscation",
+                    "confidence": 90,
+                    "matched_pattern": "base64 payload with malicious decoded content",
+                    "matched_text": decoded["encoded"],
+                    "target": str(unit.file_path),
+                    "field_path": unit.field_path,
+                    "scope": unit.scope,
+                    "position": f"line:{line},column:{column}",
+                    "offset": source_offset,
+                    "source_file": "encoding_obfuscation.yaml",
+                    "decoded_from": decoded["encoded"],
+                    "decoded_depth": decoded["depth"],
+                })
         return findings
 
     @staticmethod

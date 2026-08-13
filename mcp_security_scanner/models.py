@@ -24,6 +24,7 @@ class ScanUnit:
     base_offset: int = 0
     decoded_from: str | None = None
     decoded_depth: int = 0
+    source_offsets: list[int] | None = None
 
 
 @dataclass

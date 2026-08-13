@@ -9,7 +9,7 @@
 [![ATR Rules](https://img.shields.io/badge/ATR%20rules-5-7B61FF)](rules/)
 [![Last Commit](https://img.shields.io/github/last-commit/ookini-kawaii/mcp-security-scanner?label=last%20commit)](https://github.com/ookini-kawaii/mcp-security-scanner/commits/main)
 
-当前版本为 **v1.4.0**。它延续 v1.2.0 的误报校准能力和 v1.3.x 的文件完整性基线，并加入 MCP stdio 运行时 `tools/list` 差异检测。
+当前版本为 **v1.4.1**。它延续 v1.2.0 的误报校准能力和 v1.3.x 的文件完整性基线，并加入 MCP stdio 运行时 `tools/list` 差异检测及 fail-closed 加固。
 
 ## 能力概览
 
@@ -103,7 +103,7 @@ v2 基线默认覆盖目标目录中的全部普通文件和符号链接，并�
 
 ## 报告结构
 
-JSON 报告包含 `findings`、按目标聚合的 `incidents`、`skipped_files`、`total_files`、`profile` 和可选的 `runtime` 快照。每条 finding 包含：`rule_id`、`severity`、`confidence`、`field_path`、`position`（`line:N,column:M`）、`offset`、`decoded_from` 等字段。SARIF 输出为 2.1.0，可直接导入 GitHub code scanning 等工具。
+JSON 报告包含 `findings`、按目标聚合的 `incidents`、`skipped_files`、`total_files`、`profile` 和可选的 `runtime` 快照摘要。运行时命令参数和完整工具元数据默认不写入报告，仅保留可比对的 SHA-256 摘要。每条 finding 包含：`rule_id`、`severity`、`confidence`、`field_path`、`position`（`line:N,column:M`）、`offset`、`decoded_from` 等字段。SARIF 输出为 2.1.0，可直接导入 GitHub code scanning 等工具。
 
 默认报告写入 `reports/`；该目录已加入 `.gitignore`。
 
@@ -112,7 +112,7 @@ JSON 报告包含 `findings`、按目标聚合的 `incidents`、`skipped_files`�
 ```
 mcp-security-scanner/
 ├── scanner.py                 # CLI 与兼容入口
-├── mcp_security_scanner/      # v1.4.0 扫描引擎
+├── mcp_security_scanner/      # v1.4.1 扫描引擎
 │   ├── engine.py              # 扫描编排、profile、去重
 │   ├── extractors.py          # 字段和源码字符串提取
 │   ├── matching.py            # 上下文匹配与置信度校准

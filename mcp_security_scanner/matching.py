@@ -50,7 +50,11 @@ def match_unit(unit: ScanUnit, rule: dict):
 
 
 def _finding(unit, rule, pattern, matched_text, offset):
-    source_offset = unit.base_offset + offset
+    source_offset = (
+        unit.source_offsets[offset]
+        if unit.source_offsets and offset < len(unit.source_offsets)
+        else unit.base_offset + offset
+    )
     line, column = line_column(unit.source_content, source_offset)
     confidence, severity = calibrate(unit, rule, matched_text, offset)
     return {
