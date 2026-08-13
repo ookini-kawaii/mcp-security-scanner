@@ -6,7 +6,7 @@ from pathlib import Path
 from .correlation import correlate
 from .decoders import extract_base64
 from .extractors import discover_targets, extract_units, is_test_path
-from .matching import match_unit
+from .matching import line_column, match_unit
 from .models import ScanResult, SEVERITY_RANK, ScanUnit
 from .rules import RuleLoader
 
@@ -83,6 +83,8 @@ class MCPSecurityScanner:
                     decoded_findings.extend(match_unit(decoded_unit, rule))
                 findings.extend(decoded_findings)
                 if decoded_findings:
+                    source_offset = unit.base_offset + decoded["position"]
+                    line, column = line_column(content, source_offset)
                     findings.append({
                         "rule_id": "ATR-ENCODE-OBFUS-001",
                         "rule_name": "Confirmed Encoded Payload",
@@ -95,8 +97,8 @@ class MCPSecurityScanner:
                         "target": str(path),
                         "field_path": unit.field_path,
                         "scope": unit.scope,
-                        "position": f"line:1,column:{unit.base_offset + decoded['position'] + 1}",
-                        "offset": unit.base_offset + decoded["position"],
+                        "position": f"line:{line},column:{column}",
+                        "offset": source_offset,
                         "source_file": "encoding_obfuscation.yaml",
                         "decoded_from": decoded["encoded"],
                         "decoded_depth": decoded["depth"],
