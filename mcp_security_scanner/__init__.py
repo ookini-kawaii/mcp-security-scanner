@@ -1,4 +1,4 @@
-VERSION = "1.4.1"
+VERSION = "1.5.0"
 
 """Context-aware static scanner for MCP tool metadata and source files."""
 

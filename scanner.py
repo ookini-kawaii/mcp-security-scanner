@@ -23,6 +23,7 @@ from mcp_security_scanner import (
 from mcp_security_scanner.correlation import correlate
 from mcp_security_scanner.reports import ReportGenerator
 from mcp_security_scanner.rules import RuleLoader, ScannerConfigurationError
+from mcp_security_scanner.runtime import DEFAULT_MAX_MESSAGES, DEFAULT_MAX_OUTPUT_BYTES
 
 
 EXIT_CLEAN = 0
@@ -111,6 +112,26 @@ def build_parser():
     parser.add_argument("--runtime-polls", type=int, default=2, help="tools/list 轮询次数 (默认: 2)")
     parser.add_argument("--runtime-timeout", type=float, default=5.0, help="单次 MCP 请求超时秒数")
     parser.add_argument("--runtime-interval", type=float, default=0.0, help="轮询间隔秒数")
+    parser.add_argument(
+        "--runtime-cwd", metavar="PATH",
+        help="MCP Server 工作目录；默认使用一次性临时目录",
+    )
+    parser.add_argument(
+        "--runtime-allow-env", action="append", default=[], metavar="NAME",
+        help="在默认最小环境之外传递指定环境变量，可重复指定",
+    )
+    parser.add_argument(
+        "--runtime-inherit-env", action="store_true",
+        help="兼容模式：向 MCP Server 传递当前进程全部环境变量",
+    )
+    parser.add_argument(
+        "--runtime-max-output", type=int, default=DEFAULT_MAX_OUTPUT_BYTES,
+        metavar="BYTES", help=f"stdout/stderr 总字节上限 (默认: {DEFAULT_MAX_OUTPUT_BYTES})",
+    )
+    parser.add_argument(
+        "--runtime-max-messages", type=int, default=DEFAULT_MAX_MESSAGES,
+        metavar="COUNT", help=f"JSON-RPC 消息数上限 (默认: {DEFAULT_MAX_MESSAGES})",
+    )
     return parser
 
 
@@ -136,11 +157,17 @@ def main(argv=None):
                 polls=args.runtime_polls,
                 timeout=args.runtime_timeout,
                 interval=args.runtime_interval,
+                cwd=args.runtime_cwd,
+                allow_env=args.runtime_allow_env,
+                inherit_environment=args.runtime_inherit_env,
+                max_output_bytes=args.runtime_max_output,
+                max_messages=args.runtime_max_messages,
             )
             result.runtime = {
                 "command": runtime_scan.command,
                 "polls": runtime_scan.polls,
                 "snapshots": runtime_scan.snapshots,
+                "policy": runtime_scan.policy,
             }
             result.findings.extend(runtime_scan.findings)
             result.incidents = correlate(result.findings)

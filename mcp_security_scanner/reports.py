@@ -40,10 +40,19 @@ class ReportGenerator:
         if result.skipped_files:
             print(f"[i] 已跳过 {len(result.skipped_files)} 个文件")
         if result.runtime:
+            policy = result.runtime.get("policy", {})
             print(
                 f"[i] 运行时监控: {result.runtime['polls']} 次 tools/list，"
                 f"{len(result.runtime['snapshots'])} 个快照"
             )
+            if policy:
+                print(
+                    "[i] 运行时策略: "
+                    f"环境={policy.get('environment_mode', 'unknown')}，"
+                    f"工作目录={policy.get('working_directory_mode', 'unknown')}，"
+                    f"输出上限={policy.get('max_output_bytes', 0)} 字节，"
+                    f"消息上限={policy.get('max_messages', 0)}"
+                )
 
     @staticmethod
     def to_json(result):
