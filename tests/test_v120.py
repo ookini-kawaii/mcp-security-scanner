@@ -36,7 +36,7 @@ class PrecisionRegressionTests(unittest.TestCase):
         self.scanner = MCPSecurityScanner(RULES, profile="enforce")
 
     def test_version(self):
-        self.assertEqual(VERSION, "1.5.0")
+        self.assertEqual(VERSION, "1.6.0")
 
     def test_all_malicious_samples_remain_detected(self):
         for sample in sorted(MALICIOUS_CASES.glob("*.json")):

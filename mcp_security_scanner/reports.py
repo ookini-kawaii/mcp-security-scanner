@@ -41,9 +41,11 @@ class ReportGenerator:
             print(f"[i] 已跳过 {len(result.skipped_files)} 个文件")
         if result.runtime:
             policy = result.runtime.get("policy", {})
+            surfaces = policy.get("monitored_surfaces", [])
+            surface_label = ", ".join(surfaces) if surfaces else "none"
             print(
-                f"[i] 运行时监控: {result.runtime['polls']} 次 tools/list，"
-                f"{len(result.runtime['snapshots'])} 个快照"
+                f"[i] 运行时监控: {result.runtime['polls']} 次轮询，"
+                f"{len(result.runtime['snapshots'])} 个快照，协议面={surface_label}"
             )
             if policy:
                 print(
@@ -51,7 +53,8 @@ class ReportGenerator:
                     f"环境={policy.get('environment_mode', 'unknown')}，"
                     f"工作目录={policy.get('working_directory_mode', 'unknown')}，"
                     f"输出上限={policy.get('max_output_bytes', 0)} 字节，"
-                    f"消息上限={policy.get('max_messages', 0)}"
+                    f"消息上限={policy.get('max_messages', 0)}，"
+                    f"协议={policy.get('negotiated_protocol_version', 'unknown')}"
                 )
 
     @staticmethod

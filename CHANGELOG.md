@@ -2,6 +2,25 @@
 
 本项目遵循语义化版本号。
 
+## [1.6.0] - 2026-08-17
+
+### Added
+
+- 按 MCP Server 声明的能力监控 `tools/list`、`resources/list`、`resources/templates/list` 与 `prompts/list`。
+- 增加多页游标聚合、重复对象标识拒绝，以及工具、资源、资源模板和提示词的字段级差异检测。
+- 增加 `--runtime-protocol-version`，显式支持四个传统初始化握手协议版本。
+- JSON 快照增加各协议面的对象计数、SHA-256 和能力摘要；finding 增加 `runtime_surface`。
+
+### Changed
+
+- CLI 改用能力感知的 `monitor_surfaces()`；`monitor_tools()` 保留为向后兼容的显式工具监控接口。
+- 运行时报告不再暴露对象名称、URI、URI 模板或提示词参数，仅记录哈希化标识和差异摘要。
+- Server 声明的协议面返回错误 schema、重复标识、无效游标或未知协议版本时统一 fail-closed。
+
+### Security
+
+- v1.6.0 仅实现传统 `initialize` 握手，不宣称兼容采用逐请求协议元数据的 `2026-07-28`，避免错误协商造成不可信结果。
+
 ## [1.5.0] - 2026-08-14
 
 ### Added

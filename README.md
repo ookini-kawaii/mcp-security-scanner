@@ -9,7 +9,7 @@
 [![ATR Rules](https://img.shields.io/badge/ATR%20rules-5-7B61FF)](rules/)
 [![Last Commit](https://img.shields.io/github/last-commit/ookini-kawaii/mcp-security-scanner?label=last%20commit)](https://github.com/ookini-kawaii/mcp-security-scanner/commits/main)
 
-当前版本为 **v1.5.0**。它在静态检测、完整性基线和 MCP stdio `tools/list` 差异检测之上，增加默认最小环境、临时工作目录以及输出和消息资源上限，降低运行不可信 Server 时的环境泄露与资源耗尽风险。
+当前版本为 **v1.6.0**。运行时探针现可按 Server 声明的能力监控工具、资源、资源模板和提示词元数据，支持分页聚合与传统 MCP 协议版本选择，并继续对命令参数、对象标识及元数据内容进行脱敏。
 
 ## 能力概览
 
@@ -21,7 +21,8 @@
 - 结果聚合：按文件关联为攻击事件，告警去重，报告包含字段路径、行列位置、置信度和跳过文件清单。
 - 完整性基线：覆盖普通文件和符号链接，支持忽略规则、目标绑定和可选 HMAC-SHA256 签名；哈希变化按高置信供应链事件报告。
 - 输出与 CI：terminal、JSON、SARIF；`--fail-on` 控制流水线失败阈值。
-- 运行时监控：通过 stdio 启动 MCP Server，多次调用 `tools/list`，检测工具新增、删除及 description/inputSchema 变化。
+- 运行时监控：通过 stdio 启动 MCP Server，按声明能力轮询 `tools/list`、`resources/list`、`resources/templates/list` 和 `prompts/list`，检测对象增删及安全相关元数据变化。
+- 协议兼容：显式支持 `2024-11-05`、`2025-03-26`、`2025-06-18` 和 `2025-11-25` 传统初始化握手；未知版本 fail-closed。
 - 运行时保护：默认使用一次性工作目录和环境变量白名单，限制 stdout/stderr 总量与 JSON-RPC 消息数；策略摘要进入报告但不记录环境值和临时路径。
 
 ## 检测规则
@@ -74,6 +75,9 @@ python scanner.py package/ --baseline package-baseline.json --profile enforce --
 # 运行时检测 Rug Pull（运行时选项放在 Server 命令前）
 python scanner.py package/ --runtime-polls 3 --profile enforce --fail-on high --runtime-command python mock_server.py
 
+# 显式选择 Server 使用的传统 MCP 协议版本
+python scanner.py package/ --runtime-protocol-version 2025-11-25 --runtime-command python mock_server.py
+
 # 默认使用临时工作目录；依赖项目相对路径的 Server 应显式指定目录
 python scanner.py package/ --runtime-cwd ./server --runtime-command python -m my_mcp_server
 
@@ -116,7 +120,7 @@ v2 基线默认覆盖目标目录中的全部普通文件和符号链接，并�
 
 ## 报告结构
 
-JSON 报告包含 `findings`、按目标聚合的 `incidents`、`skipped_files`、`total_files`、`profile` 和可选的 `runtime` 快照摘要。运行时命令参数和完整工具元数据默认不写入报告，仅保留可比对的 SHA-256 摘要；`runtime.policy` 只记录环境模式、工作目录模式和资源上限，不记录环境值或真实临时路径。每条 finding 包含：`rule_id`、`severity`、`confidence`、`field_path`、`position`（`line:N,column:M`）、`offset`、`decoded_from` 等字段。SARIF 输出为 2.1.0，可直接导入 GitHub code scanning 等工具。
+JSON 报告包含 `findings`、按目标聚合的 `incidents`、`skipped_files`、`total_files`、`profile` 和可选的 `runtime` 快照摘要。运行时命令参数、对象标识及完整元数据默认不写入报告，仅保留计数和可比对的 SHA-256 摘要；`runtime.policy` 只记录环境模式、工作目录模式、协议版本、已监控协议面和资源上限，不记录环境值或真实临时路径。每条 finding 包含：`rule_id`、`severity`、`confidence`、`field_path`、`position`（`line:N,column:M`）、`runtime_surface`、`runtime_change`、`offset`、`decoded_from` 等字段。SARIF 输出为 2.1.0，可直接导入 GitHub code scanning 等工具。
 
 默认报告写入 `reports/`；该目录已加入 `.gitignore`。
 
@@ -125,7 +129,7 @@ JSON 报告包含 `findings`、按目标聚合的 `incidents`、`skipped_files`�
 ```
 mcp-security-scanner/
 ├── scanner.py                 # CLI 与兼容入口
-├── mcp_security_scanner/      # v1.5.0 扫描引擎
+├── mcp_security_scanner/      # v1.6.0 扫描引擎
 │   ├── engine.py              # 扫描编排、profile、去重
 │   ├── extractors.py          # 字段和源码字符串提取
 │   ├── matching.py            # 上下文匹配与置信度校准
@@ -149,13 +153,13 @@ mcp-security-scanner/
 python -B -m unittest discover -s tests -v
 ```
 
-基准来源于《MCP 供应链安全检测实践》记录的 58 条误报：环境变量 `.env`、安全校验中的 `/etc/passwd`/`/etc/shadow`，以及 PNG、函数名和 URL 被宽 Base64 正则误报。v1.2.0 通过字段感知、上下文窗口、测试目录策略和“解码后再确认”降低这些误报；v1.3.x 增加并强化了本地 Hash Pinning；v1.4.x 增加并加固 stdio `tools/list` 运行时差异检测；v1.5.0 增加环境、工作目录和输出资源保护。语义二次确认仍属于后续版本范围。
+基准来源于《MCP 供应链安全检测实践》记录的 58 条误报：环境变量 `.env`、安全校验中的 `/etc/passwd`/`/etc/shadow`，以及 PNG、函数名和 URL 被宽 Base64 正则误报。v1.2.0 通过字段感知、上下文窗口、测试目录策略和“解码后再确认”降低这些误报；v1.3.x 增加并强化了本地 Hash Pinning；v1.4.x 增加并加固 stdio `tools/list` 运行时差异检测；v1.5.0 增加环境、工作目录和输出资源保护；v1.6.0 将运行时差异检测扩展到资源、资源模板和提示词。语义二次确认仍属于后续版本范围。
 
 ## 检测边界
 
 这是以静态规则为主、可选运行时探针为辅的扫描器，发现结果代表需要复核的风险信号，不等同于已确认漏洞。运行时探针当前支持 stdio JSON-RPC MCP Server，不覆盖 HTTP/SSE、鉴权、工具实际执行行为或网络流量分析。
 
-v1.5.0 的运行时保护层不是操作系统级沙箱：临时工作目录不会阻止绝对路径文件访问，环境变量白名单不会阻止 Server 主动读取本地文件，当前也不会阻断网络连接。对完全不可信的 Server，仍应在容器、虚拟机或独立低权限账户中运行扫描。
+运行时保护层不是操作系统级沙箱：临时工作目录不会阻止绝对路径文件访问，环境变量白名单不会阻止 Server 主动读取本地文件，当前也不会阻断网络连接。`2026-07-28` 使用逐请求协议元数据的新握手模型，v1.6.0 不宣称兼容；HTTP/SSE/Streamable HTTP 也不在本版本范围。对完全不可信的 Server，仍应在容器、虚拟机或独立低权限账户中运行扫描。
 
 ## 参考与许可
 

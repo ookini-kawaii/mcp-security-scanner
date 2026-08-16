@@ -17,13 +17,18 @@ from mcp_security_scanner import (
     compare_manifest,
     load_manifest,
     save_manifest,
-    monitor_tools,
+    monitor_surfaces,
     RuntimeProbeError,
 )
 from mcp_security_scanner.correlation import correlate
 from mcp_security_scanner.reports import ReportGenerator
 from mcp_security_scanner.rules import RuleLoader, ScannerConfigurationError
-from mcp_security_scanner.runtime import DEFAULT_MAX_MESSAGES, DEFAULT_MAX_OUTPUT_BYTES
+from mcp_security_scanner.runtime import (
+    DEFAULT_MAX_MESSAGES,
+    DEFAULT_MAX_OUTPUT_BYTES,
+    DEFAULT_PROTOCOL_VERSION,
+    SUPPORTED_PROTOCOL_VERSIONS,
+)
 
 
 EXIT_CLEAN = 0
@@ -107,9 +112,15 @@ def build_parser():
     parser.add_argument("--brief", action="store_true", help="精简终端输出")
     parser.add_argument(
         "--runtime-command", nargs="+", metavar="COMMAND",
-        help="启动 MCP stdio Server 并监控 tools/list 变化",
+        help="启动 MCP stdio Server 并监控其声明的元数据能力",
     )
-    parser.add_argument("--runtime-polls", type=int, default=2, help="tools/list 轮询次数 (默认: 2)")
+    parser.add_argument("--runtime-polls", type=int, default=2, help="元数据轮询次数 (默认: 2)")
+    parser.add_argument(
+        "--runtime-protocol-version",
+        choices=SUPPORTED_PROTOCOL_VERSIONS,
+        default=DEFAULT_PROTOCOL_VERSION,
+        help=f"MCP 传统握手协议版本 (默认: {DEFAULT_PROTOCOL_VERSION})",
+    )
     parser.add_argument("--runtime-timeout", type=float, default=5.0, help="单次 MCP 请求超时秒数")
     parser.add_argument("--runtime-interval", type=float, default=0.0, help="轮询间隔秒数")
     parser.add_argument(
@@ -152,7 +163,7 @@ def main(argv=None):
         signing_key = os.environ.get(BASELINE_KEY_ENV)
 
         if args.runtime_command:
-            runtime_scan = monitor_tools(
+            runtime_scan = monitor_surfaces(
                 args.runtime_command,
                 polls=args.runtime_polls,
                 timeout=args.runtime_timeout,
@@ -162,6 +173,7 @@ def main(argv=None):
                 inherit_environment=args.runtime_inherit_env,
                 max_output_bytes=args.runtime_max_output,
                 max_messages=args.runtime_max_messages,
+                protocol_version=args.runtime_protocol_version,
             )
             result.runtime = {
                 "command": runtime_scan.command,
