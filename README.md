@@ -9,7 +9,7 @@
 [![ATR Rules](https://img.shields.io/badge/ATR%20rules-5-7B61FF)](rules/)
 [![Last Commit](https://img.shields.io/github/last-commit/ookini-kawaii/mcp-security-scanner?label=last%20commit)](https://github.com/ookini-kawaii/mcp-security-scanner/commits/main)
 
-当前版本为 **v1.6.0**。运行时探针现可按 Server 声明的能力监控工具、资源、资源模板和提示词元数据，支持分页聚合与传统 MCP 协议版本选择，并继续对命令参数、对象标识及元数据内容进行脱敏。
+当前版本为 **v1.6.1**。运行时探针现可按 Server 声明的能力监控工具、资源、资源模板和提示词元数据，支持分页聚合与传统 MCP 协议版本选择，并继续对命令参数、对象标识及元数据内容进行脱敏。关键词规则会保留每一次实际命中的位置与证据。
 
 ## 能力概览
 
@@ -129,7 +129,7 @@ JSON 报告包含 `findings`、按目标聚合的 `incidents`、`skipped_files`�
 ```
 mcp-security-scanner/
 ├── scanner.py                 # CLI 与兼容入口
-├── mcp_security_scanner/      # v1.6.0 扫描引擎
+├── mcp_security_scanner/      # v1.6.1 扫描引擎
 │   ├── engine.py              # 扫描编排、profile、去重
 │   ├── extractors.py          # 字段和源码字符串提取
 │   ├── matching.py            # 上下文匹配与置信度校准
@@ -153,13 +153,13 @@ mcp-security-scanner/
 python -B -m unittest discover -s tests -v
 ```
 
-基准来源于《MCP 供应链安全检测实践》记录的 58 条误报：环境变量 `.env`、安全校验中的 `/etc/passwd`/`/etc/shadow`，以及 PNG、函数名和 URL 被宽 Base64 正则误报。v1.2.0 通过字段感知、上下文窗口、测试目录策略和“解码后再确认”降低这些误报；v1.3.x 增加并强化了本地 Hash Pinning；v1.4.x 增加并加固 stdio `tools/list` 运行时差异检测；v1.5.0 增加环境、工作目录和输出资源保护；v1.6.0 将运行时差异检测扩展到资源、资源模板和提示词。语义二次确认仍属于后续版本范围。
+基准来源于《MCP 供应链安全检测实践》记录的 58 条误报：环境变量 `.env`、安全校验中的 `/etc/passwd`/`/etc/shadow`，以及 PNG、函数名和 URL 被宽 Base64 正则误报。v1.2.0 通过字段感知、上下文窗口、测试目录策略和“解码后再确认”降低这些误报；v1.3.x 增加并强化了本地 Hash Pinning；v1.4.x 增加并加固 stdio `tools/list` 运行时差异检测；v1.5.0 增加环境、工作目录和输出资源保护；v1.6.0 将运行时差异检测扩展到资源、资源模板和提示词；v1.6.1 补齐关键词重复命中与证据精度。语义二次确认仍属于后续版本范围。
 
 ## 检测边界
 
 这是以静态规则为主、可选运行时探针为辅的扫描器，发现结果代表需要复核的风险信号，不等同于已确认漏洞。运行时探针当前支持 stdio JSON-RPC MCP Server，不覆盖 HTTP/SSE、鉴权、工具实际执行行为或网络流量分析。
 
-运行时保护层不是操作系统级沙箱：临时工作目录不会阻止绝对路径文件访问，环境变量白名单不会阻止 Server 主动读取本地文件，当前也不会阻断网络连接。`2026-07-28` 使用逐请求协议元数据的新握手模型，v1.6.0 不宣称兼容；HTTP/SSE/Streamable HTTP 也不在本版本范围。对完全不可信的 Server，仍应在容器、虚拟机或独立低权限账户中运行扫描。
+运行时保护层不是操作系统级沙箱：临时工作目录不会阻止绝对路径文件访问，环境变量白名单不会阻止 Server 主动读取本地文件，当前也不会阻断网络连接。`2026-07-28` 使用逐请求协议元数据的新握手模型，v1.6.1 不宣称兼容；HTTP/SSE/Streamable HTTP 也不在本版本范围。对完全不可信的 Server，仍应在容器、虚拟机或独立低权限账户中运行扫描。
 
 ## 参考与许可
 

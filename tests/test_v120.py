@@ -36,7 +36,24 @@ class PrecisionRegressionTests(unittest.TestCase):
         self.scanner = MCPSecurityScanner(RULES, profile="enforce")
 
     def test_version(self):
-        self.assertEqual(VERSION, "1.6.0")
+        self.assertEqual(VERSION, "1.6.1")
+
+    def test_keyword_findings_cover_each_match_with_exact_evidence(self):
+        content = '{"description":"prefix callback_url then callback_url"}'
+        with tempfile.TemporaryDirectory() as temp_dir:
+            target = Path(temp_dir) / "repeat.json"
+            target.write_text(content, encoding="utf-8")
+            result = MCPSecurityScanner(RULES, profile="hunt").scan_path(target)
+        findings = [
+            item for item in result.findings
+            if item["matched_pattern"] == "callback_url"
+        ]
+        expected_offsets = [
+            index for index in range(len(content))
+            if content.startswith("callback_url", index)
+        ]
+        self.assertEqual([item["offset"] for item in findings], expected_offsets)
+        self.assertTrue(all(item["matched_text"] == "callback_url" for item in findings))
 
     def test_all_malicious_samples_remain_detected(self):
         for sample in sorted(MALICIOUS_CASES.glob("*.json")):

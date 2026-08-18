@@ -42,10 +42,8 @@ def match_unit(unit: ScanUnit, rule: dict):
             for match in matches:
                 findings.append(_finding(unit, rule, pattern, match.group(), match.start()))
         else:
-            lower_content = unit.content.lower()
-            offset = lower_content.find(pattern.lower())
-            if offset >= 0:
-                findings.append(_finding(unit, rule, pattern, unit.content[:200], offset))
+            for match in re.finditer(re.escape(pattern), unit.content, re.IGNORECASE):
+                findings.append(_finding(unit, rule, pattern, match.group(), match.start()))
     return findings
 
 
