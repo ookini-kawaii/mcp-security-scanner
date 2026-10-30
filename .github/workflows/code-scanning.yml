@@ -14,8 +14,8 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -23,6 +23,6 @@ jobs:
       - name: Generate SARIF
         run: python scanner.py mcp_security_scanner --profile enforce --fail-on none --format sarif --no-report > mcp-scan.sarif
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: mcp-scan.sarif
